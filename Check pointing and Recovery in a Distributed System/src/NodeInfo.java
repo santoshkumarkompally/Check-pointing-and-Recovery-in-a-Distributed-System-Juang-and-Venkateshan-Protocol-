@@ -1,6 +1,7 @@
 import java.io.Serializable;
 
 public class NodeInfo implements Serializable {
+
 	/**
 	 * 
 	 */

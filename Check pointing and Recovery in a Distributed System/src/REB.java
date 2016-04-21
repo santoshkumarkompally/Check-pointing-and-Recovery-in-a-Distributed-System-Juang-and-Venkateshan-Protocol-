@@ -11,15 +11,15 @@ public class REB {
 	static ArrayList<Integer> neighbors = new ArrayList<Integer>();
 	static ArrayList<FailuresCheckpoints> checkpoints = new ArrayList<FailuresCheckpoints>();
 	static int nodeid;
-	static HashMap<Integer, Boolean> active = new HashMap<Integer, Boolean>();
-	static HashMap<Integer, Boolean> passive = new HashMap<Integer, Boolean>();
+	static boolean active;
+	static boolean passive;
 
 	static Random rndIndex = new Random();
 	static Random rndSubset = new Random();
 	static Random rndNodes = new Random();
 	static REB reb;
 	static ArrayList<Client> clients;
-	static int numReq[];
+	static int numReq;
 
 	public static void main(String[] args) {
 		reb = new REB();
@@ -28,7 +28,7 @@ public class REB {
 		String hostname;
 		// Input the values from command line
 		noNodes = Integer.parseInt(args[0]);
-		numReq = new int[noNodes];
+
 		noFailEvents = Integer.parseInt(args[1]);
 		maxNumber = Integer.parseInt(args[2]);
 		maxPerActive = Integer.parseInt(args[3]);
@@ -91,11 +91,11 @@ public class REB {
 		// and 1 denotes the nodes to be active and node 0 is set to be active
 		// in order to avoid the situation of not getting any node to be active
 		if (activeNode == 1 || nodeid == 0) {
-			active.put(nodeid, true);
-			passive.put(nodeid, false);
+			active = true;
+			passive = false;
 		} else {
-			active.put(nodeid, false);
-			passive.put(nodeid, true);
+			active = false;
+			passive = true;
 		}
 
 		// Creating Client Objects
@@ -107,38 +107,44 @@ public class REB {
 
 		// if node is active initially, it sends messages to random subset of
 		// neighbors
-		while (active.get(nodeid) == true) {
+		while (active == true) {
 			System.out.println("In while active for nodeid : " + nodeid);
-			reb.sndMsg();
-			// After sending messages to the subset of its neighbors, the node
-			// becomes passive
-			passive.put(nodeid, true);
-			active.put(nodeid, false);
+			REB.sndMsg();
 
 		}
 
-		System.out.println("The node id is : " + nodeid + " and messages sent : " + numReq[nodeid]);
+		// System.out.println("The node id is : " + nodeid + " and messages sent
+		// : " + numReq);
 
 	}
 
-	void sndMsg() {
+	public static void sndMsg() {
 		ArrayList<Integer> toSendReq = new ArrayList<Integer>();
 		// Send requests to subset of neighbors. Generate random subsets and
 		// random index values to retrieve random neighbors
 
 		// we need subset to be greater than 0
-		int subset = rndSubset.nextInt(maxPerActive) + 1;
-
-		for (int i = 0; i < subset; i++) {
-			int index = rndIndex.nextInt(neighbors.size());
-			toSendReq.add(neighbors.get(index));
+		int subset = 0;
+		while (subset <= maxPerActive) {
+			subset = rndSubset.nextInt(neighbors.size()) + 1;
+			if (subset <= maxPerActive) {
+				for (int i = 0; i < subset; i++) {
+					int index = rndIndex.nextInt(neighbors.size());
+					toSendReq.add(neighbors.get(index));
+					System.out.println("Node id " + nodeid + " to send msg to : " + neighbors.get(index));
+				}
+				break;
+			} else {
+				subset = 0;
+			}
 		}
 
 		// Send Requests to the randomly generated neighbors
 		for (int i = 0; i < toSendReq.size(); i++) {
-			numReq[nodeid]++;
+			numReq++;
+			System.out.println("The number of requests for nodeid : " + nodeid + "is : " + numReq);
 			// Make client requests
-			clients.get(toSendReq.get(i)).write(nodeid, nodeInfo.get(toSendReq.get(i)), toSendReq.size());
+			clients.get(toSendReq.get(i)).write(nodeid, nodeInfo.get(toSendReq.get(i)));
 			// reb.clientCall(nodeid, nodeInfo.get(toSendReq.get(i)),
 			// toSendReq.size());
 			// After making one client request, the node has to wait for
@@ -150,6 +156,11 @@ public class REB {
 				e.printStackTrace();
 			}
 		}
+		// After sending messages to the subset of its neighbors, the node
+		// becomes passive
+		passive = true;
+		active = false;
+
 	}
 
 	// Method for calling server

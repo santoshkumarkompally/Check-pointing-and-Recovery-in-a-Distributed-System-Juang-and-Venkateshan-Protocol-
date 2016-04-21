@@ -38,16 +38,16 @@ public class Client {
 
 	}
 
-	public void write(int requestingNode, NodeInfo node, int totRequests) {
+	public void write(int requestingNode, NodeInfo node) {
 
-		maintainRequestMsgs nodeDetails = new maintainRequestMsgs(node, totRequests);
 		OutputStream output;
 		try {
 			output = socket.getOutputStream();
 			ObjectOutputStream oos = new ObjectOutputStream(output);
-			oos.writeObject(nodeDetails);
-			// // not closing the client socket as the connection needs to be up
-			// // always
+			oos.writeObject(node);
+			oos.write(requestingNode);
+			// not closing the client socket as the connection needs to be up
+			// always
 			// oos.close();
 			// output.close();
 		} catch (IOException e) {
