@@ -24,8 +24,6 @@ public class Server extends Thread {
 		try {
 
 			serversocket = new ServerSocket(nodeinfo.get(nodeid).port);
-			// System.out.println("in try of server : " +
-			// nodeinfo.get(nodeid).port);
 
 			// listenSocket
 			while (true) {
