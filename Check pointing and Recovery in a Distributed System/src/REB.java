@@ -50,7 +50,7 @@ public class REB {
 			node_id = Integer.parseInt(det[0]);
 			hostname = det[1];
 			port = Integer.parseInt(det[2]);
-			nodeInfo.put(node_id, new NodeInfo(nodeid, hostname, port));
+			nodeInfo.put(node_id, new NodeInfo(node_id, hostname, port));
 
 			// System.out.println("NodeID : " + node_id + " hostname : " +
 			// hostname + " port : " + port);
@@ -91,15 +91,22 @@ public class REB {
 		// and 1 denotes the nodes to be active and node 0 is set to be active
 		// in order to avoid the situation of not getting any node to be active
 		if (activeNode == 1 || nodeid == 0) {
+
 			active = true;
 			passive = false;
-		} else {
+		} else
+
+		{
 			active = false;
 			passive = true;
 		}
 
 		// Creating Client Objects
-		for (int i = 0; i < noNodes; i++) {
+		for (
+
+		int i = 0; i < noNodes; i++)
+
+		{
 			// System.out.println("In creating objects");
 			Client c = new Client(nodeInfo.get(i).hostname, nodeInfo.get(i).port);
 			clients.add(c);
@@ -107,7 +114,9 @@ public class REB {
 
 		// if node is active initially, it sends messages to random subset of
 		// neighbors
-		while (active == true) {
+		while (active == true)
+
+		{
 			System.out.println("In while active for nodeid : " + nodeid);
 			REB.sndMsg();
 
@@ -131,7 +140,8 @@ public class REB {
 				for (int i = 0; i < subset; i++) {
 					int index = rndIndex.nextInt(neighbors.size());
 					toSendReq.add(neighbors.get(index));
-					System.out.println("Node id " + nodeid + " to send msg to : " + neighbors.get(index));
+					// System.out.println("Node id " + nodeid + " to send msg to
+					// : " + neighbors.get(index));
 				}
 				break;
 			} else {
@@ -142,15 +152,22 @@ public class REB {
 		// Send Requests to the randomly generated neighbors
 		for (int i = 0; i < toSendReq.size(); i++) {
 			numReq++;
-			System.out.println("The number of requests for nodeid : " + nodeid + "is : " + numReq);
+			// System.out.println("The number of requests for nodeid : " +
+			// nodeid + "is : " + numReq);
 			// Make client requests
+			// System.out.println("from : " + nodeid + " toSendReq : " +
+			// toSendReq.get(i));
+			// System.out.println(nodeid + " to send request to : " +
+			// nodeInfo.get(toSendReq.get(i)).nodeid);
 			clients.get(toSendReq.get(i)).write(nodeid, nodeInfo.get(toSendReq.get(i)));
 			// reb.clientCall(nodeid, nodeInfo.get(toSendReq.get(i)),
 			// toSendReq.size());
 			// After making one client request, the node has to wait for
 			// some time until it can send request to another client
 			try {
+				// System.out.println("Going to wait for min Send Delay");
 				WaitTillNextRequest.sleep(minSendDelay);
+				// System.out.println("Wait over");
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

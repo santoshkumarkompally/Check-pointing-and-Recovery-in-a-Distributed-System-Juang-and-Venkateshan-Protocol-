@@ -33,17 +33,21 @@ public class Server extends Thread {
 				System.out.println("AFTER ACCEPT in server for : " + nodeid);
 				InputStream input = clientsocket.getInputStream();
 				ObjectInputStream oinput = new ObjectInputStream(input);
+				System.out.println("after servers objectinput stream");
 
 				try {
-					// System.out.println("In server: getting nodedetails");
+					System.out.println("in server try");
 					node = (NodeInfo) oinput.readObject();
-					int requestingNode = (int) oinput.readInt();
-					System.out.println(requestingNode + " sent message to : " + node.nodeid);
+					System.out.println("In server for nodeid : " + node.nodeid);
+					// int requestingNode = (int) oinput.readObject();
+					// System.out.println(requestingNode + " sent message to : "
+					// + node.nodeid);
 					// check for the receiving node conditions and update the
 					// status of active and passive
 					if (REB.numReq <= REB.maxNumber && REB.passive == true) {
 						REB.active = true;
 						REB.passive = false;
+
 						sndMsg(node);
 					}
 
@@ -77,19 +81,30 @@ public class Server extends Thread {
 		// random index values to retrieve random neighbors
 
 		// we need subset to be greater than 0
-		int subset = REB.rndSubset.nextInt(REB.maxPerActive) + 1;
-
-		for (int i = 0; i < subset; i++) {
-			int index = REB.rndIndex.nextInt(REB.neighbors.size());
-			toSendReq.add(REB.neighbors.get(index));
+		int subset = 0;
+		while (subset <= REB.maxPerActive) {
+			subset = REB.rndSubset.nextInt(REB.neighbors.size()) + 1;
+			if (subset <= REB.maxPerActive) {
+				for (int i = 0; i < subset; i++) {
+					int index = REB.rndIndex.nextInt(REB.neighbors.size());
+					toSendReq.add(REB.neighbors.get(index));
+					// System.out.println("Node id " + nodeid + " to send msg to
+					// : " + REB.neighbors.get(index));
+				}
+				break;
+			} else {
+				subset = 0;
+			}
 		}
 
 		// Send Requests to the randomly generated neighbors
 		for (int i = 0; i < toSendReq.size(); i++) {
 			REB.numReq++;
-
+			System.out.println("The number of requests for nodeid : " + nodeid + "is : " + REB.numReq
+					+ " and neighbor is : " + toSendReq.get(i));
 			// Make client requests
 			REB.clients.get(toSendReq.get(i)).write(node.nodeid, REB.nodeInfo.get(toSendReq.get(i)));
+			System.out.println("Node id " + node.nodeid + " to send msg to : " + REB.nodeInfo.get(toSendReq.get(i)));
 			// reb.clientCall(nodeid, nodeInfo.get(toSendReq.get(i)),
 			// toSendReq.size());
 			// After making one client request, the node has to wait for
