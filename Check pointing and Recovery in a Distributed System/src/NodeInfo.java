@@ -15,4 +15,9 @@ public class NodeInfo implements Serializable {
 		this.port = port;
 
 	}
+
+	@Override
+	public String toString() {
+		return "NodeInfo [nodeid=" + nodeid + ", port=" + port + ", hostname=" + hostname + "]";
+	}
 }

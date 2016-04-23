@@ -21,7 +21,7 @@ public class REB {
 	static ArrayList<Client> clients;
 	static int numReq;
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException {
 		reb = new REB();
 		clients = new ArrayList<Client>();
 		int node_id, port;
@@ -50,7 +50,7 @@ public class REB {
 			node_id = Integer.parseInt(det[0]);
 			hostname = det[1];
 			port = Integer.parseInt(det[2]);
-			nodeInfo.put(node_id, new NodeInfo(nodeid, hostname, port));
+			nodeInfo.put(node_id, new NodeInfo(node_id, hostname, port));
 
 			// System.out.println("NodeID : " + node_id + " hostname : " +
 			// hostname + " port : " + port);
@@ -60,8 +60,7 @@ public class REB {
 		String[] q = args[5].split(" ");
 		for (int i = 0; i < q.length; i++) {
 			neighbors.add(Integer.parseInt(q[i]));
-			// System.out.println("Node is : " + nodeid + " Node neighbours : "
-			// + q[i]);
+			// System.out.println("Node is : " + nodeid + " Node neighbours : " + q[i]);
 		}
 
 		// Storing the sequence of failure events and checkpoints
@@ -83,7 +82,7 @@ public class REB {
 
 		// Put the server to listening mode
 		reb.serverCall(nodeid, nodeInfo);
-
+		Thread.sleep(100);
 		// Active and Passive Nodes - atleast one node needs to be active in
 		// order to send messages
 		int activeNode = rndNodes.nextInt(2);
@@ -98,75 +97,90 @@ public class REB {
 			passive = true;
 		}
 
-		// Creating Client Objects
-		for (int i = 0; i < noNodes; i++) {
+		// Creating Client Objects but why till numberOfNodes. Shouldn't it be number of neighbors.
+		for (int i = 0; i < neighbors.size(); i++) {
 			// System.out.println("In creating objects");
-			Client c = new Client(nodeInfo.get(i).hostname, nodeInfo.get(i).port);
+			Client c = new Client(nodeInfo.get(neighbors.get(i)).hostname, nodeInfo.get(neighbors.get(i)).port);
 			clients.add(c);
 		}
 
 		// if node is active initially, it sends messages to random subset of
-		// neighbors
-		while (active == true) {
-			System.out.println("In while active for nodeid : " + nodeid);
-			REB.sndMsg();
+		// neighbors.
+		if (active == true) {
+			System.out.println("This is selected as active node initially: " + nodeid);
+			sndMsg();
 
 		}
 
-		// System.out.println("The node id is : " + nodeid + " and messages sent
-		// : " + numReq);
 
 	}
 
-	public static void sndMsg() {
-		ArrayList<Integer> toSendReq = new ArrayList<Integer>();
-		// Send requests to subset of neighbors. Generate random subsets and
-		// random index values to retrieve random neighbors
-
-		// we need subset to be greater than 0
-		int subset = 0;
-		while (subset <= maxPerActive) {
-			subset = rndSubset.nextInt(neighbors.size()) + 1;
-			if (subset <= maxPerActive) {
-				for (int i = 0; i < subset; i++) {
-					int index = rndIndex.nextInt(neighbors.size());
-					toSendReq.add(neighbors.get(index));
-					System.out.println("Node id " + nodeid + " to send msg to : " + neighbors.get(index));
+	
+	public static synchronized void sndMsg(){
+		
+		// select a neighbor randomly and then send messages from them to others.
+		
+		int count=0;
+		int choose;
+		// iterating through all the neighbors.
+		for(int i=0;i<neighbors.size();i++){
+			
+			choose= rndSubset.nextInt(2);
+			
+			// we will send a message to this neighbor.
+			if(choose ==1 && numReq<maxNumber){
+				// get client object and then write to the client object
+				clients.get(i).write(nodeid, nodeInfo.get(neighbors.get(i)));
+				System.out.println("sending message from: "+ nodeid + "to: "+ neighbors.get(i));
+				numReq++;
+				count++; // to check at the end if we are able to send to anyone or not.
+			
+				try {
+					Thread.sleep(minSendDelay);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
-				break;
-			} else {
-				subset = 0;
 			}
+			
 		}
-
-		// Send Requests to the randomly generated neighbors
-		for (int i = 0; i < toSendReq.size(); i++) {
+		// send to the first neighbor.
+		if(count==0 && numReq<maxNumber){
+			
+			clients.get(neighbors.get(0)).write(nodeid, nodeInfo.get(neighbors.get(0)));
+			System.out.println("sending message from: "+ nodeid + "to: "+ neighbors.get(0));
 			numReq++;
-			System.out.println("The number of requests for nodeid : " + nodeid + "is : " + numReq);
-			// Make client requests
-			clients.get(toSendReq.get(i)).write(nodeid, nodeInfo.get(toSendReq.get(i)));
-			// reb.clientCall(nodeid, nodeInfo.get(toSendReq.get(i)),
-			// toSendReq.size());
-			// After making one client request, the node has to wait for
-			// some time until it can send request to another client
-			try {
-				WaitTillNextRequest.sleep(minSendDelay);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 		}
-		// After sending messages to the subset of its neighbors, the node
-		// becomes passive
-		passive = true;
-		active = false;
-
+	passive=true;
+	active=false;
 	}
-
+	
 	// Method for calling server
 	void serverCall(int nodeid, HashMap<Integer, NodeInfo> nodeInfo) {
 		server = new Thread(new Server(nodeid, nodeInfo));
 		server.start();
 	}
 
+	public static synchronized void actionNeeded(){
+		
+		System.out.println(numReq);
+		if (REB.numReq <= REB.maxNumber && REB.passive == true) {
+			REB.active = true;
+			REB.passive = false;
+
+			sndMsg();
+		}
+
+		else if (REB.numReq > REB.maxNumber) {
+			REB.active = false;
+			REB.passive = true;
+		} else if (REB.numReq <= REB.maxNumber && REB.active == true) {
+			REB.active = true;
+			REB.passive = false;
+			sndMsg();
+		}
+		
+	}	
+	
+	
 }

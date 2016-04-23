@@ -6,6 +6,8 @@ import java.net.Socket;
 public class Client {
 
 	Socket socket;
+	OutputStream output;
+	ObjectOutputStream oos;
 
 	static boolean connected;
 
@@ -24,8 +26,8 @@ public class Client {
 				try {
 
 					socket = new Socket(hostname, port);
-					// System.out.println("Connected to client at port: " +
-					// port);
+					output= socket.getOutputStream();
+					oos = new ObjectOutputStream(output);
 					connected = true;
 				} catch (IOException ex) {
 
@@ -40,16 +42,17 @@ public class Client {
 
 	public void write(int requestingNode, NodeInfo node) {
 
-		OutputStream output;
+		
 		try {
-			output = socket.getOutputStream();
-			ObjectOutputStream oos = new ObjectOutputStream(output);
+			
+		
 			oos.writeObject(node);
-			oos.write(requestingNode);
+		//	System.out.println("coming here:" + node);
+		//	oos.write(requestingNode);
 			// not closing the client socket as the connection needs to be up
-			// always
-			// oos.close();
-			// output.close();
+			// always. We need to close the output stream.
+		//	 oos.close();
+		//	 output.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

@@ -1,111 +1,62 @@
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.HashMap;
 
-public class Server extends Thread {
+public class Server extends Thread{
+
 	ServerSocket serversocket;
-	Socket clientsocket;
-	int nodeid;
+	static int nodeid;
 	HashMap<Integer, NodeInfo> nodeinfo;
 	NodeInfo node;
-
+	
+	
 	public Server(int nodeid, HashMap<Integer, NodeInfo> nodeinfo) {
 		this.nodeid = nodeid;
 		this.nodeinfo = nodeinfo;
 
 	}
-
+	
+	@Override
 	public void run() {
-
+		
+		// this will create a server socket.
 		try {
-
 			serversocket = new ServerSocket(nodeinfo.get(nodeid).port);
-
-			// listenSocket
-			while (true) {
-				// System.out.println("BEFORE ACCEPT in server for : " +
-				// nodeid);
-				clientsocket = serversocket.accept();
-				System.out.println("AFTER ACCEPT in server for : " + nodeid);
-				InputStream input = clientsocket.getInputStream();
-				ObjectInputStream oinput = new ObjectInputStream(input);
-
-				try {
-					// System.out.println("In server: getting nodedetails");
-					node = (NodeInfo) oinput.readObject();
-					int requestingNode = (int) oinput.readInt();
-					System.out.println(requestingNode + " sent message to : " + node.nodeid);
-					// check for the receiving node conditions and update the
-					// status of active and passive
-					if (REB.numReq <= REB.maxNumber && REB.passive == true) {
-						REB.active = true;
-						REB.passive = false;
-						sndMsg(node);
-					}
-
-					else if (REB.numReq > REB.maxNumber) {
-						REB.active = false;
-						REB.passive = true;
-					} else if (REB.numReq <= REB.maxNumber && REB.active == true) {
-						REB.active = true;
-						REB.passive = false;
-						sndMsg(node);
-					}
-
-				} catch (ClassNotFoundException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-			}
-		}
-
-		catch (IOException e) {
-			System.out.println("Read Failed");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
-	}
-
-	public void sndMsg(NodeInfo node) {
-		ArrayList<Integer> toSendReq = new ArrayList<Integer>();
-		// Send requests to subset of neighbors. Generate random subsets and
-		// random index values to retrieve random neighbors
-
-		// we need subset to be greater than 0
-		int subset = REB.rndSubset.nextInt(REB.maxPerActive) + 1;
-
-		for (int i = 0; i < subset; i++) {
-			int index = REB.rndIndex.nextInt(REB.neighbors.size());
-			toSendReq.add(REB.neighbors.get(index));
-		}
-
-		// Send Requests to the randomly generated neighbors
-		for (int i = 0; i < toSendReq.size(); i++) {
-			REB.numReq++;
-
-			// Make client requests
-			REB.clients.get(toSendReq.get(i)).write(node.nodeid, REB.nodeInfo.get(toSendReq.get(i)));
-			// reb.clientCall(nodeid, nodeInfo.get(toSendReq.get(i)),
-			// toSendReq.size());
-			// After making one client request, the node has to wait for
-			// some time until it can send request to another client
-			try {
-				WaitTillNextRequest.sleep(REB.minSendDelay);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-		// After sending messages to the subset of its neighbors, the node
-		// becomes passive
-		REB.passive = true;
-		REB.active = false;
-
-	}
-
+		
+	// accept incoming connections for ever.	
+	while(true){
+		
+		try {
+			Socket 	clientsocket = serversocket.accept();
+			InputStream input = clientsocket.getInputStream();
+			ObjectInputStream oinput = new ObjectInputStream(input); // input stream.
+			OutputStream output=clientsocket.getOutputStream();
+			ObjectOutputStream ooutput=new ObjectOutputStream(output); // output stream.
+			
+			// give a thread the input and output stream so that it can keep independently listen.
+			ClientListener c=new ClientListener(oinput, ooutput);
+			c.start();
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
+		
+	}	
+	
+	
+	
+	
+		
+}
+	
 }
