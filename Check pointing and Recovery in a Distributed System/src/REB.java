@@ -275,19 +275,23 @@ public class REB {
 	// Make sure the checkpoints size>=1
 	// Called when rollback message is received by a node
 	private static synchronized void rollback(Message msg) {
+		boolean promoteRollback = false;
 		while (checkPoints.get(checkPoints.size() - 1).recievedValues[msg.fromNodeID] > msg.sentMessagesCount
 				&& checkPoints.size() > 0) {
 			checkPoints.remove(checkPoints.size() - 1);
+			promoteRollback = true;
 		}
-		// update clock vector to latest
-		checkPoints.get(checkPoints.size() - 1).clockVector = clockVector;
-		if (msg.fromNodeID == nodeid) {
-			checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
-		}
+		// update clock vector to latest if rollback occurred.
+		if (promoteRollback) {
+			checkPoints.get(checkPoints.size() - 1).clockVector = clockVector;
+			if (msg.fromNodeID == nodeid) {
+				checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
+			}
 
-		// send rollback messages to all the neighbors based on current
-		// checkpoint
-		sendRollbackMessage();
+			// send rollback messages to all the neighbors based on current
+			// checkpoint
+			sendRollbackMessage();
+		}
 	}
 
 	// Checking consistency with all connected nodes - sending rollback
