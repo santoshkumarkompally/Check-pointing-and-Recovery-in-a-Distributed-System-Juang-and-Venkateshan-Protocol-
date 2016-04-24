@@ -1,6 +1,11 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
+
+import Models.CheckPoint;
+import Models.Message;
+import Models.NodeInfo;
 
 public class REB {
 
@@ -23,26 +28,25 @@ public class REB {
 	// To store all the checkpoints.
 	static int[] clockVector;
 
+	// Checkpoints specific to this particular node - optimize - save only this
+	// information for each node after parsing the config file.
+	static List<Integer> myFailedCheckpoints;
+
 	public static void main(String[] args) throws InterruptedException {
 
 		numberOfCheckPointsTaken = 0;
 		checkPoints = new ArrayList<>();
 		clients = new ArrayList<Client>();
+		myFailedCheckpoints = new ArrayList<>();
+
 		int node_id, port;
 		String hostname;
 		// Input the values from command line
 		noNodes = Integer.parseInt(args[0]);
-		int[] sentValues = new int[noNodes];
-		int[] recievedValues = new int[noNodes];
-		clockVector = new int[noNodes];
-		for (int i = 0; i < noNodes; i++) {
-			sentValues[i] = 0;
-			recievedValues[i] = 0;
-			clockVector[i] = 0;
-		}
+
 		// first checkpoint at starting before REB starts.
-		CheckPoint firstCheckpoint = new CheckPoint(sentValues, recievedValues, clockVector);
-		checkPoints.add(firstCheckpoint);
+
+		checkPoints.add(createFirstCheckPoint());
 
 		noFailEvents = Integer.parseInt(args[1]);
 		maxNumber = Integer.parseInt(args[2]);
@@ -61,6 +65,9 @@ public class REB {
 			node_id = Integer.parseInt(det[0]);
 			hostname = det[1];
 			port = Integer.parseInt(det[2]);
+
+			// TODO : Test if clockVector is null - since its initialization is
+			// moved to createFirstCheckPoint()
 			nodeInfo.put(node_id, new NodeInfo(node_id, hostname, port, false, clockVector));
 
 		}
@@ -79,6 +86,11 @@ public class REB {
 			int failnode = Integer.parseInt(FailNodeSplit[0]);
 			int checkpoint = Integer.parseInt(FailNodeSplit[1]);
 			failedCheckPoints.add(new FailuresCheckpoints(i, failnode, checkpoint));
+
+			// Saving personal fail-checkpoints
+			if (failnode == nodeid) {
+				myFailedCheckpoints.add(checkpoint);
+			}
 			// System.out.println("Failnode : " + failnode + " Checkpoints : " +
 			// checkpoint);
 		}
@@ -119,8 +131,12 @@ public class REB {
 
 		// select a neighbor randomly and then send messages from them to
 		// others.
-		CheckPoint ckpt = checkPoints.get(checkPoints.size() - 1);
-		// matrixVector)
+		CheckPoint ckpt;
+		if (checkPoints.size() < 1) {
+			ckpt = createFirstCheckPoint();
+		} else {
+			ckpt = checkPoints.get(checkPoints.size() - 1);
+		}
 		int count = 0;
 		int choose;
 
@@ -131,12 +147,23 @@ public class REB {
 
 			// we will send a message to this neighbor.
 			if (choose == 1 && numReq < maxNumber) {
-				// get client object and then write to the client object.
+
 				nodeInfo.get(neighbors.get(i)).clockVector[nodeid]++;
-				clients.get(i).write(nodeid, nodeInfo.get(neighbors.get(i)));
+				// Setting noOfSentMessages to -1 to indicate it is not a
+				// rollback message
+				Message msg = new Message(nodeid, -1, nodeInfo.get(neighbors.get(i)));
+				// get client object and then write to the client object.
+
+				clients.get(i).write(nodeid, msg);
 				ckpt.sentValues[neighbors.get(i)]++;
-				ckpt.matrixVector = nodeInfo.get(neighbors.get(i)).clockVector;
+				ckpt.clockVector = nodeInfo.get(neighbors.get(i)).clockVector;
+				ckpt.indexSinceLastRollback++;
 				checkPoints.add(ckpt);
+
+				// Process fail simulation
+				if (hasProcessFailed(ckpt)) {
+					handleProcessFailed();
+				}
 
 				System.out.println("sending message from: " + nodeid + "to: " + neighbors.get(i));
 				numReq++;
@@ -154,8 +181,10 @@ public class REB {
 		}
 		// send to the first neighbor.
 		if (count == 0 && numReq < maxNumber) {
-
-			clients.get(neighbors.get(0)).write(nodeid, nodeInfo.get(neighbors.get(0)));
+			// Setting noOfSentMessages to -1 indicates it is not a rollback
+			// message
+			Message msg = new Message(nodeid, -1, nodeInfo.get(neighbors.get(0)));
+			clients.get(neighbors.get(0)).write(nodeid, msg);
 			System.out.println("sending message from: " + nodeid + "to: " + neighbors.get(0));
 			numReq++;
 		}
@@ -172,27 +201,37 @@ public class REB {
 	 * This method is called when a process is in passive state and receives a
 	 * message from another process.
 	 */
-	public static synchronized void actionNeeded(NodeInfo node) {
+	public static synchronized void actionNeeded(Message msg) {
+
+		// If it is a rollback message, take appropriate action
+		if (msg.isRollbackMessage()) {
+			rollback(msg);
+			return;
+		}
+		NodeInfo node = msg.nodeInfo;
 
 		CheckPoint ckpt = checkPoints.get(checkPoints.size() - 1);
 		// updating the clock vector.
 		for (int i = 0; i < noNodes; i++) {
-
 			if (clockVector[i] <= node.clockVector[i]) {
-
 				clockVector[i] = node.clockVector[i];
 			}
-
 		}
-		clockVector[node.nodeid]++;
+
+		// TODO : Do we need to update clockVector this way? Isn't it already
+		// updated?
+		// clockVector[node.nodeid]++;
 
 		ckpt.recievedValues[node.nodeid]++;
-		ckpt.matrixVector = clockVector;
-		// create a checkpoint.
+		ckpt.clockVector = clockVector;
+		ckpt.indexSinceLastRollback++;
+		checkPoints.add(ckpt);
+		if (hasProcessFailed(ckpt)) {
+			handleProcessFailed();
+		}
 
 		// System.out.println(numReq);
 		if (numReq <= maxNumber) {
-
 			if (!active) {
 				active = true;
 			}
@@ -207,8 +246,64 @@ public class REB {
 	 * and receive of a message. This method will update the send and receive
 	 * message lists accordingly.
 	 */
-	public static synchronized void createCheckPoint() {
-
+	public static synchronized CheckPoint createFirstCheckPoint() {
+		int[] sentValues = new int[noNodes];
+		int[] recievedValues = new int[noNodes];
+		clockVector = new int[noNodes];
+		for (int i = 0; i < noNodes; i++) {
+			sentValues[i] = 0;
+			recievedValues[i] = 0;
+			clockVector[i] = 0;
+		}
+		return new CheckPoint(sentValues, recievedValues, clockVector, 0);
 	}
+
+	public static boolean hasProcessFailed(CheckPoint ckpt) {
+		return ckpt.indexSinceLastRollback == myFailedCheckpoints.get(0);
+	}
+
+	// Called when a process fails
+	public static synchronized void handleProcessFailed() {
+		checkPoints.remove(checkPoints.size() - 1);
+		// update index
+		checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
+		sendRollbackMessage();
+	}
+
+	// If the received messages count > count of sent msgs from sending node,
+	// rollback to previous checkpoint
+	// Make sure the checkpoints size>=1
+	// Called when rollback message is received by a node
+	private static synchronized void rollback(Message msg) {
+		while (checkPoints.get(checkPoints.size() - 1).recievedValues[msg.fromNodeID] > msg.sentMessagesCount
+				&& checkPoints.size() > 0) {
+			checkPoints.remove(checkPoints.size() - 1);
+		}
+		// update clock vector to latest
+		checkPoints.get(checkPoints.size() - 1).clockVector = clockVector;
+		if (msg.fromNodeID == nodeid) {
+			checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
+		}
+
+		// send rollback messages to all the neighbors based on current
+		// checkpoint
+		sendRollbackMessage();
+	}
+
+	// Checking consistency with all connected nodes - sending rollback
+	// initiation messages
+	// Receiving node shall rollback if needed
+	// Called when rollback message needs to be sent to all connected nodes
+	private static void sendRollbackMessage() {
+		CheckPoint lastKnownCheckPoint = checkPoints.get(checkPoints.size() - 1);
+		for (int i = 0; i < neighbors.size(); i++) {
+			NodeInfo node = nodeInfo.get(neighbors.get(i));
+			Message msg = new Message(nodeid, lastKnownCheckPoint.sentValues[neighbors.get(i)], node);
+			clients.get(i).write(nodeid, msg);
+		}
+	}
+
+	// TODO : Probably FAULTY functioning of checkPoint.indexSinceLastRollback.
+	// Check once.
 
 }

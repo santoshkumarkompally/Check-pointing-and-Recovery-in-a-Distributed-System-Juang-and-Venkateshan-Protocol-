@@ -2,6 +2,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
+import Models.Message;
+
 public class ClientListener extends Thread {
 
 	ObjectInputStream oinput;
@@ -16,15 +18,15 @@ public class ClientListener extends Thread {
 	@Override
 	public void run() {
 
-		NodeInfo node;
+		Message msg;
 		// which ever socket we are having we are going to read through this
 		// socket.
 		while (true) {
 
 			try {
-				node = (NodeInfo) oinput.readObject();
+				msg = (Message) oinput.readObject();
 				// System.out.println(node + " is coming at: " + Server.nodeid);
-				REB.actionNeeded(node);
+				REB.actionNeeded(msg);
 			} catch (ClassNotFoundException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

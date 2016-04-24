@@ -3,6 +3,8 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 
+import Models.Message;
+
 public class Client {
 
 	Socket socket;
@@ -26,7 +28,7 @@ public class Client {
 				try {
 
 					socket = new Socket(hostname, port);
-					output= socket.getOutputStream();
+					output = socket.getOutputStream();
 					oos = new ObjectOutputStream(output);
 					connected = true;
 				} catch (IOException ex) {
@@ -40,21 +42,18 @@ public class Client {
 
 	}
 
-	public void write(int requestingNode, NodeInfo node) {
+	public void write(int requestingNode, Message msg) {
 
-		
 		try {
-			
-		
-			oos.writeObject(node);
-		//	System.out.println("coming here:" + node);
-		//	oos.write(requestingNode);
+
+			oos.writeObject(msg);
+			// System.out.println("coming here:" + node);
+			// oos.write(requestingNode);
 			// not closing the client socket as the connection needs to be up
 			// always. We need to close the output stream.
-		//	 oos.close();
-		//	 output.close();
+			// oos.close();
+			// output.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
