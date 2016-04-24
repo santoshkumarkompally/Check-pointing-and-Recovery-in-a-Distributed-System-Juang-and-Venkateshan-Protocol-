@@ -9,7 +9,7 @@ Created a new Object called Message which includes NodeInfo, no of sent messages
 
 - Added a new entry to Checkpoint called indexSinceLastRollback. This is used to track when the process is supposed to fail, ie after how many checkpoints. This value is set to 0 every time a process fails. If this happens, remove the first entry from myFailureCheckpoints. Now the count (indexSinceLastRollback) is reset and new failure point is targeted.
 
--For a rollback message, all that is needed is the number of sent messages of this node to all its neighbours. 
+-For a rollback message, all that is needed is the number of sent messages of this node to each of its neighbours. 
 
 -Once a node received a rollback message, it keeps rolling back till the number of received messages=number of sent messages from sender node. Or, till the last checkpoint is reached (additional check - not needed if it works correctly). Then this node sends a rollback message to all its neighbours if it has rolled back. The promoteRollback variable checks if a rollback occurred or not.
 
