@@ -27,17 +27,22 @@ public class REB {
 	static ArrayList<CheckPoint> checkPoints;
 	// To store all the checkpoints.
 	static int[] clockVector;
-
+	static int failuresSimulatedTillNow;
+	static boolean inRecovery;
+	static int numberOfIterations;
 	// Checkpoints specific to this particular node - optimize - save only this
 	// information for each node after parsing the config file.
 	static List<Integer> myFailedCheckpoints;
 
 	public static void main(String[] args) throws InterruptedException {
 
+		inRecovery = false;
 		numberOfCheckPointsTaken = 0;
 		checkPoints = new ArrayList<>();
 		clients = new ArrayList<Client>();
 		myFailedCheckpoints = new ArrayList<>();
+		failuresSimulatedTillNow = 0;
+		numberOfIterations = 0;
 
 		int node_id, port;
 		String hostname;
@@ -203,6 +208,18 @@ public class REB {
 	 */
 	public static synchronized void actionNeeded(Message msg) {
 
+		// this is to start the recovery initiation.
+		// after this no one will able to send message
+		if (msg.recoveryInitiator()) {
+
+			if (inRecovery == false) {
+
+				inRecovery = true;
+				floodRecoveryInitiation();
+			}
+			return;
+		}
+
 		// If it is a rollback message, take appropriate action
 		if (msg.isRollbackMessage()) {
 			rollback(msg);
@@ -227,7 +244,14 @@ public class REB {
 		ckpt.indexSinceLastRollback++;
 		checkPoints.add(ckpt);
 		if (hasProcessFailed(ckpt)) {
+			inRecovery = true; // this will mean we are initiating/participating
+								// in the recovery.
+			// flood the system to initiate the recovery so that they will stop
+			// sending the application messaged.
+			floodRecoveryInitiation();
 			handleProcessFailed();
+
+			return;
 		}
 
 		// System.out.println(numReq);
@@ -239,6 +263,19 @@ public class REB {
 		} else if (numReq > maxNumber) {
 			active = false;
 		}
+	}
+
+	/**
+	 * send a message to all the other processes about the failure.
+	 */
+	static void floodRecoveryInitiation() {
+
+		for (int i = 0; i < neighbors.size(); i++) {
+			// NodeInfo node = nodeInfo.get(neighbors.get(i));
+			Message msg = new Message(nodeid, -2, nodeInfo.get(neighbors.get(i)));
+			clients.get(i).write(nodeid, msg);
+		}
+
 	}
 
 	/**
@@ -258,12 +295,26 @@ public class REB {
 		return new CheckPoint(sentValues, recievedValues, clockVector, 0);
 	}
 
+	// for simulating failures.
 	public static boolean hasProcessFailed(CheckPoint ckpt) {
-		return ckpt.indexSinceLastRollback == myFailedCheckpoints.get(0);
+
+		// We have to check if this is out turn to fail or not first.
+
+		if (failedCheckPoints.get(failuresSimulatedTillNow).nodeid == nodeid) {
+
+			return (ckpt.indexSinceLastRollback == failedCheckPoints.get(failuresSimulatedTillNow).numCheckpoints);
+			// return ckpt.indexSinceLastRollback == myFailedCheckpoints.get(0);
+		}
+		return false;
+
 	}
 
 	// Called when a process fails
 	public static synchronized void handleProcessFailed() {
+		// if a process fails it should execute random backing of checkpoints
+		// and assume it to be the stable
+		// storage and start from there.
+		// We need to change the below line to back off randomly.
 		checkPoints.remove(checkPoints.size() - 1);
 		// update index
 		checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
@@ -282,8 +333,10 @@ public class REB {
 			promoteRollback = true;
 		}
 		// update clock vector to latest if rollback occurred.
+		// why do we need to update the vector clock in case of a roll back.
 		if (promoteRollback) {
-			checkPoints.get(checkPoints.size() - 1).clockVector = clockVector;
+			// checkPoints.get(checkPoints.size() - 1).clockVector =
+			// clockVector;
 			if (msg.fromNodeID == nodeid) {
 				checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
 			}

@@ -17,4 +17,13 @@ ALERT!!!!
 NOTE : Rollback messages are not counted towards maxNumber of messages at all. 
 -Should verify what happens when passive processes get any rollback messages - if they do.
 
+# Active and passive are only for REB.
+ During CheckPointing and Recovery protocol the passive process will decide whether it has to roll back or not.  
+
+We have to make in recovery false after the recovery is complete.
+Also we need to incerese the failuresSimulatedTillNow variable so that the other process for which the simulation has to take place
+can do that.
+We have to change the change the checkpoints taken after the last successful check point after recovery to 0.
+
+# how to we take care of n-1 iterations?
  

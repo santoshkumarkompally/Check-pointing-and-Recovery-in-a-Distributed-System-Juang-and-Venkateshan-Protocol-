@@ -15,4 +15,7 @@ public class Message {
 		return sentMessagesCount == -1;
 	}
 
+	public boolean recoveryInitiator() {
+		return sentMessagesCount == -2;
+	}
 }
