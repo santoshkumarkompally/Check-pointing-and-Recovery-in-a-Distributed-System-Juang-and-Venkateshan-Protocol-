@@ -33,9 +33,13 @@ public class REB {
 	// Checkpoints specific to this particular node - optimize - save only this
 	// information for each node after parsing the config file.
 	static List<Integer> myFailedCheckpoints;
+	static int[] count;
+	static int counter;
+	static int iteration;
 
 	public static void main(String[] args) throws InterruptedException {
-
+		iteration = 0;
+		counter = 0;
 		inRecovery = false;
 		numberOfCheckPointsTaken = 0;
 		checkPoints = new ArrayList<>();
@@ -48,7 +52,11 @@ public class REB {
 		String hostname;
 		// Input the values from command line
 		noNodes = Integer.parseInt(args[0]);
+		count = new int[noNodes];
 
+		// init the count array to 0.
+
+		resetCounter();
 		// first checkpoint at starting before REB starts.
 
 		checkPoints.add(createFirstCheckPoint());
@@ -202,6 +210,18 @@ public class REB {
 		server.start();
 	}
 
+	static void rollBackIfNeeded() {
+
+		for (int i = 0; i < noNodes; i++) {
+			while (checkPoints.get(checkPoints.size() - 1).recievedValues[i] > count[i]) {
+				checkPoints.remove(checkPoints.size() - 1);
+			}
+		}
+
+		sendRollbackMessage();
+
+	}
+
 	/**
 	 * This method is called when a process is in passive state and receives a
 	 * message from another process.
@@ -210,15 +230,47 @@ public class REB {
 
 		// this is to start the recovery initiation.
 		// after this no one will able to send message
-		if (msg.recoveryInitiator()) {
+		// if (msg.recoveryInitiator()) {
+		//
+		// if (inRecovery == false) {
+		//
+		// inRecovery = true;
+		// floodRecoveryInitiation();
+		// }
+		// return;
+		// }
 
-			if (inRecovery == false) {
+		if (msg.isRollbackMessage()) {
+			inRecovery = true;
+			count[msg.fromNodeID] = msg.sentMessagesCount;
 
-				inRecovery = true;
-				floodRecoveryInitiation();
+			for (int i = 0; i < noNodes; i++) {
+
+				if (count[i] != 0)
+					counter++;
 			}
-			return;
+
+			if (counter >= neighbors.size()) {
+				// check consistency and broad cast to neighbors.
+				iteration++;
+				if (iteration < noNodes - 1) {
+
+					rollBackIfNeeded();
+				} else {
+					// iteration is set to 0 since reb is complete.
+					iteration = 0;
+					// reset all the received from neighbors.
+					resetCounter();
+					// restart the REB Protocol.
+					sndMsg();
+
+				}
+
+			}
+
 		}
+
+		// -----------------------------
 
 		// If it is a rollback message, take appropriate action
 		if (msg.isRollbackMessage()) {
@@ -248,7 +300,8 @@ public class REB {
 								// in the recovery.
 			// flood the system to initiate the recovery so that they will stop
 			// sending the application messaged.
-			floodRecoveryInitiation();
+			// floodRecoveryInitiation();
+			// -----------------------------------------------------------------
 			handleProcessFailed();
 
 			return;
@@ -269,7 +322,7 @@ public class REB {
 	 * send a message to all the other processes about the failure.
 	 */
 	static void floodRecoveryInitiation() {
-
+		failuresSimulatedTillNow++;
 		for (int i = 0; i < neighbors.size(); i++) {
 			// NodeInfo node = nodeInfo.get(neighbors.get(i));
 			Message msg = new Message(nodeid, -2, nodeInfo.get(neighbors.get(i)));
@@ -337,9 +390,10 @@ public class REB {
 		if (promoteRollback) {
 			// checkPoints.get(checkPoints.size() - 1).clockVector =
 			// clockVector;
-			if (msg.fromNodeID == nodeid) {
-				checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
-			}
+			// if (msg.fromNodeID == nodeid) {
+			// checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback =
+			// 0;
+			// }
 
 			// send rollback messages to all the neighbors based on current
 			// checkpoint
@@ -362,5 +416,13 @@ public class REB {
 
 	// TODO : Probably FAULTY functioning of checkPoint.indexSinceLastRollback.
 	// Check once.
+
+	static void resetCounter() {
+
+		for (int i = 0; i < noNodes; i++) {
+
+			count[i] = 0;
+		}
+	}
 
 }

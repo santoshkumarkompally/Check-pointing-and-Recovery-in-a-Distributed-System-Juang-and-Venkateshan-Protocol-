@@ -12,7 +12,7 @@ public class Message {
 	}
 
 	public boolean isRollbackMessage() {
-		return sentMessagesCount == -1;
+		return sentMessagesCount != -1;
 	}
 
 	public boolean recoveryInitiator() {
