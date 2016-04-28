@@ -9,8 +9,8 @@ import Models.NodeInfo;
 
 public class REB {
 
-	Thread server;
-	Thread client;
+	static Thread server;
+	static Thread client;
 	static int noNodes, noFailEvents, maxNumber, maxPerActive, minSendDelay;
 	static HashMap<Integer, NodeInfo> nodeInfo = new HashMap<>();
 	static ArrayList<Integer> neighbors = new ArrayList<Integer>();
@@ -66,7 +66,7 @@ public class REB {
 		maxPerActive = Integer.parseInt(args[3]);
 		nodeid = Integer.parseInt(args[7]);
 		minSendDelay = Integer.parseInt(args[8]);
-
+		// System.out.println("node id is:" + nodeid);
 		String str = args[4];
 		String[] val = new String[noNodes];
 		val = str.split("#");
@@ -109,7 +109,7 @@ public class REB {
 		}
 
 		// Put the server to listening mode
-		reb.serverCall(nodeid, nodeInfo);
+		serverCall(nodeid, nodeInfo);
 		// Active and Passive Nodes - atleast one node needs to be active in
 		// order to send messages
 		int activeNode = rndNodes.nextInt(2);
@@ -133,7 +133,8 @@ public class REB {
 		// if node is active initially, it sends messages to random subset of
 		// neighbors.
 		if (active) {
-			System.out.println("This is selected as active node initially: " + nodeid);
+			// System.out.println("This is selected as active node initially: "
+			// + nodeid);
 			sndMsg();
 
 		}
@@ -178,7 +179,8 @@ public class REB {
 					handleProcessFailed();
 				}
 
-				System.out.println("sending message from: " + nodeid + "to: " + neighbors.get(i));
+				// System.out.println("sending message from: " + nodeid + "to: "
+				// + neighbors.get(i));
 				numReq++;
 				count++; // to check at the end if we are able to send to anyone
 							// or not.
@@ -198,23 +200,27 @@ public class REB {
 			// message
 			Message msg = new Message(nodeid, -1, nodeInfo.get(neighbors.get(0)));
 			clients.get(neighbors.get(0)).write(nodeid, msg);
-			System.out.println("sending message from: " + nodeid + "to: " + neighbors.get(0));
+			// System.out.println("sending message from: " + nodeid + "to: " +
+			// neighbors.get(0));
 			numReq++;
 		}
 		active = false;
 	}
 
 	// Method for calling server
-	void serverCall(int nodeid, HashMap<Integer, NodeInfo> nodeInfo) {
-		System.out.println("value coming here is:" + nodeInfo.get(nodeid).port);
+	static void serverCall(int nodeid, HashMap<Integer, NodeInfo> nodeInfo) {
+		// System.out.println("value coming here is:" +
+		// nodeInfo.get(nodeid).port);
 		server = new Thread(new Server(nodeInfo.get(nodeid).port));
 		server.start();
 	}
 
 	static void rollBackIfNeeded() {
 
+		// System.out.println("Roll back if needed: " + nodeid);
+
 		for (int i = 0; i < noNodes; i++) {
-			while (checkPoints.get(checkPoints.size() - 1).recievedValues[i] > count[i]) {
+			while (checkPoints.get(checkPoints.size() - 1).recievedValues[i] > count[i] && count[i] >= 0) {
 				checkPoints.remove(checkPoints.size() - 1);
 			}
 		}
@@ -249,29 +255,31 @@ public class REB {
 
 			for (int i = 0; i < noNodes; i++) {
 
-				if (count[i] != 0)
+				if (count[i] != -1)
 					counter++;
 			}
 
-			if (counter >= neighbors.size()) {
+			if (counter == neighbors.size()) {
 				// check consistency and broad cast to neighbors.
 				iteration++;
+
 				if (iteration < noNodes - 1) {
 
 					rollBackIfNeeded();
 				} else {
-					System.out.println("We are able to do simulate iteration:" + failuresSimulatedTillNow);
+					System.out.println(
+							"We are able to do simulate iteration:" + failuresSimulatedTillNow + " at node: " + nodeid);
 					// increase the simulation failure value so that the next
 					// process can simulate failure.
 					failuresSimulatedTillNow++;
 					// iteration is set to 0 since reb is complete.
 					iteration = 0;
-					// reset all the received from neighbors.
-					resetCounter();
 					// restart the REB Protocol.
 					sndMsg();
 
 				}
+				// reset all the received from neighbors.
+				resetCounter();
 
 			}
 
@@ -375,43 +383,13 @@ public class REB {
 		// and assume it to be the stable
 		// storage and start from there.
 		// We need to change the below line to back off randomly.
+		// System.out.println("process init the roll back is: " + nodeid);
 		checkPoints.remove(checkPoints.size() - 1);
 		// update index
 		checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback = 0;
 		sendRollbackMessage();
 	}
 
-	// If the received messages count > count of sent msgs from sending node,
-	// rollback to previous checkpoint
-	// Make sure the checkpoints size>=1
-	// Called when rollback message is received by a node
-	private static synchronized void rollback(Message msg) {
-		boolean promoteRollback = false;
-		while (checkPoints.get(checkPoints.size() - 1).recievedValues[msg.fromNodeID] > msg.sentMessagesCount
-				&& checkPoints.size() > 0) {
-			checkPoints.remove(checkPoints.size() - 1);
-			promoteRollback = true;
-		}
-		// update clock vector to latest if rollback occurred.
-		// why do we need to update the vector clock in case of a roll back.
-		if (promoteRollback) {
-			// checkPoints.get(checkPoints.size() - 1).clockVector =
-			// clockVector;
-			// if (msg.fromNodeID == nodeid) {
-			// checkPoints.get(checkPoints.size() - 1).indexSinceLastRollback =
-			// 0;
-			// }
-
-			// send rollback messages to all the neighbors based on current
-			// checkpoint
-			sendRollbackMessage();
-		}
-	}
-
-	// Checking consistency with all connected nodes - sending rollback
-	// initiation messages
-	// Receiving node shall rollback if needed
-	// Called when rollback message needs to be sent to all connected nodes
 	private static void sendRollbackMessage() {
 		CheckPoint lastKnownCheckPoint = checkPoints.get(checkPoints.size() - 1);
 		for (int i = 0; i < neighbors.size(); i++) {
@@ -426,9 +404,10 @@ public class REB {
 
 	static void resetCounter() {
 
+		counter = 0;
 		for (int i = 0; i < noNodes; i++) {
 
-			count[i] = 0;
+			count[i] = -1;
 		}
 	}
 
