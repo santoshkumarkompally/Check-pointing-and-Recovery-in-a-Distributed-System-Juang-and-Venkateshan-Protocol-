@@ -206,6 +206,7 @@ public class REB {
 
 	// Method for calling server
 	void serverCall(int nodeid, HashMap<Integer, NodeInfo> nodeInfo) {
+		System.out.println("value coming here is:" + nodeInfo.get(nodeid).port);
 		server = new Thread(new Server(nodeInfo.get(nodeid).port));
 		server.start();
 	}
@@ -230,15 +231,17 @@ public class REB {
 
 		// this is to start the recovery initiation.
 		// after this no one will able to send message
-		// if (msg.recoveryInitiator()) {
-		//
-		// if (inRecovery == false) {
-		//
-		// inRecovery = true;
-		// floodRecoveryInitiation();
-		// }
-		// return;
-		// }
+		if (msg.recoveryInitiator()) {
+
+			if (inRecovery == false) {
+
+				inRecovery = true;
+				floodRecoveryInitiation();
+				sendRollbackMessage();
+
+			}
+			return;
+		}
 
 		if (msg.isRollbackMessage()) {
 			inRecovery = true;
@@ -257,6 +260,10 @@ public class REB {
 
 					rollBackIfNeeded();
 				} else {
+					System.out.println("We are able to do simulate iteration:" + failuresSimulatedTillNow);
+					// increase the simulation failure value so that the next
+					// process can simulate failure.
+					failuresSimulatedTillNow++;
 					// iteration is set to 0 since reb is complete.
 					iteration = 0;
 					// reset all the received from neighbors.
@@ -273,10 +280,10 @@ public class REB {
 		// -----------------------------
 
 		// If it is a rollback message, take appropriate action
-		if (msg.isRollbackMessage()) {
-			rollback(msg);
-			return;
-		}
+		// if (msg.isRollbackMessage()) {
+		// rollback(msg);
+		// return;
+		// }
 		NodeInfo node = msg.nodeInfo;
 
 		CheckPoint ckpt = checkPoints.get(checkPoints.size() - 1);
@@ -300,7 +307,7 @@ public class REB {
 								// in the recovery.
 			// flood the system to initiate the recovery so that they will stop
 			// sending the application messaged.
-			// floodRecoveryInitiation();
+			floodRecoveryInitiation();
 			// -----------------------------------------------------------------
 			handleProcessFailed();
 
@@ -322,7 +329,7 @@ public class REB {
 	 * send a message to all the other processes about the failure.
 	 */
 	static void floodRecoveryInitiation() {
-		failuresSimulatedTillNow++;
+
 		for (int i = 0; i < neighbors.size(); i++) {
 			// NodeInfo node = nodeInfo.get(neighbors.get(i));
 			Message msg = new Message(nodeid, -2, nodeInfo.get(neighbors.get(i)));
